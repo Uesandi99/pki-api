@@ -3,7 +3,6 @@ package com.uesandi.pkiApi.model;
 import org.bouncycastle.asn1.x500.X500Name;
 
 import java.security.KeyPair;
-import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 
 public class CertificateAuthority {

@@ -79,12 +79,7 @@ public class CertGenerationUtils {
         ContentSigner contentSigner = new JcaContentSignerBuilder(SIGNATURE_ALGORITHM).build(keyPair.getPrivate());
 
         X509Certificate finalCert = new JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certificateBuilder.build(contentSigner));
-        try{
-            finalCert.verify(finalCert.getPublicKey());
-            System.out.println(true);
-        }catch (Exception e){
-            System.out.println(false);
-        }
+
         authority = new CertificateAuthority(finalCert, keyPair, subjectName);
         return finalCert;
     }
@@ -125,12 +120,7 @@ public class CertGenerationUtils {
         ContentSigner contentSigner = new JcaContentSignerBuilder(SIGNATURE_ALGORITHM).build(authority.getKeyPair().getPrivate());
 
         X509Certificate finalCert = new JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certificateBuilder.build(contentSigner));
-        try{
-            finalCert.verify(finalCert.getPublicKey());
-            System.out.println(true);
-        }catch (Exception e){
-            System.out.println(false);
-        }
+
         return finalCert;
     }
 
