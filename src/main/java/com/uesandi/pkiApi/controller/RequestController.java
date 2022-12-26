@@ -1,6 +1,7 @@
 package com.uesandi.pkiApi.controller;
 
 import com.uesandi.pkiApi.utils.CertGenerationUtils;
+import com.uesandi.pkiApi.utils.KeystoreUtils;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
@@ -24,13 +25,14 @@ public class RequestController {
 
     @GetMapping("/ca")
     public String generateCACertificate(@RequestParam(name="common_name") String name) throws GeneralSecurityException, OperatorCreationException, IOException {
+        KeystoreUtils keystoreUtils = KeystoreUtils.getInstance();
         X509Certificate certificate = CertGenerationUtils.generateCA(name);
         StringWriter sw = new StringWriter();
 
         try (JcaPEMWriter pw = new JcaPEMWriter(sw)) {
             pw.writeObject(certificate);
         }
-
+        keystoreUtils.saveKeystore();
         return sw.toString();
     }
 

@@ -35,7 +35,6 @@ import java.util.Date;
 public class CertGenerationUtils {
     final static String SIGNATURE_ALGORITHM = "SHA256WithRSAEncryption";
     final static String BASIC_CONSTRAINTS_OID = "2.5.29.19";
-    private static CertificateAuthority authority = null;
 
     private CertGenerationUtils(){}
 
@@ -48,7 +47,7 @@ public class CertGenerationUtils {
         return kpGen.generateKeyPair();
     }
 
-    public static X509Certificate generateCA(String subjectCN) throws CertIOException, OperatorCreationException, GeneralSecurityException {
+    public static X509Certificate generateCA(String subjectCN) throws IOException, OperatorCreationException, GeneralSecurityException {
         //Add BouncyCastle Provider to Security
         Provider bcProvider = new BouncyCastleProvider();
         Security.addProvider(bcProvider);
@@ -80,18 +79,21 @@ public class CertGenerationUtils {
 
         X509Certificate finalCert = new JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certificateBuilder.build(contentSigner));
 
-        authority = new CertificateAuthority(finalCert, keyPair, subjectName);
+        KeystoreUtils keystoreUtils = KeystoreUtils.getInstance();
+        keystoreUtils.saveCertificate(finalCert);
+        keystoreUtils.savePrivateKey(keyPair.getPrivate(), finalCert);
         return finalCert;
     }
 
     public static X509Certificate issueCertificate(PKCS10CertificationRequest csr) throws IOException, OperatorCreationException, GeneralSecurityException {
-        if(authority == null) return null;
+        X509Certificate x509Certificate = KeystoreUtils.getInstance().getCertificate();
+        if(x509Certificate == null) return null;
         //Add BouncyCastle Provider to Security
         Provider bcProvider = new BouncyCastleProvider();
         Security.addProvider(bcProvider);
 
         X500Name subjectName = csr.getSubject();
-        X500Name issuerName = authority.getName();
+        X500Name issuerName = new X500Name(x509Certificate.getSubjectX500Principal().getName());
 
         //Prepare dates
         long now = System.currentTimeMillis();
@@ -117,7 +119,8 @@ public class CertGenerationUtils {
 
         certificateBuilder.addExtension(new ASN1ObjectIdentifier(BASIC_CONSTRAINTS_OID), true, basicConstraints);
 
-        ContentSigner contentSigner = new JcaContentSignerBuilder(SIGNATURE_ALGORITHM).build(authority.getKeyPair().getPrivate());
+        PrivateKey privateKey = KeystoreUtils.getInstance().getPrivateKey();
+        ContentSigner contentSigner = new JcaContentSignerBuilder(SIGNATURE_ALGORITHM).build(privateKey);
 
         X509Certificate finalCert = new JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certificateBuilder.build(contentSigner));
 
@@ -128,7 +131,7 @@ public class CertGenerationUtils {
         Boolean response = false;
 
         try{
-            certificate.verify(authority.getKeyPair().getPublic());
+            certificate.verify(KeystoreUtils.getInstance().getCertificate().getPublicKey());
             response = true;
         }catch (Exception e){
         }
