@@ -1,5 +1,6 @@
 package com.uesandi.pkiApi.utils;
 
+import com.uesandi.pkiApi.constants.Constants;
 import com.uesandi.pkiApi.model.CertificateAuthority;
 import org.apache.tomcat.util.http.fileupload.IOUtils;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
@@ -33,8 +34,7 @@ import java.util.Calendar;
 import java.util.Date;
 
 public class CertGenerationUtils {
-    final static String SIGNATURE_ALGORITHM = "SHA256WithRSAEncryption";
-    final static String BASIC_CONSTRAINTS_OID = "2.5.29.19";
+
 
     private CertGenerationUtils(){}
 
@@ -54,8 +54,8 @@ public class CertGenerationUtils {
 
         KeyPair keyPair = generateRSAKeyPair();
 
-        X500Name subjectName = new X500Name("CN=" + subjectCN);
-        X500Name issuerName = new X500Name("CN=Unai Esandi");
+        X500Name subjectName = new X500Name(Constants.COMMON_NAME_SHORT + subjectCN);
+        X500Name issuerName = new X500Name(Constants.SELFSIGN_ISSUER);
 
         //Prepare dates
         long now = System.currentTimeMillis();
@@ -73,9 +73,9 @@ public class CertGenerationUtils {
 
         BasicConstraints basicConstraints = new BasicConstraints(true);
 
-        certificateBuilder.addExtension(new ASN1ObjectIdentifier(BASIC_CONSTRAINTS_OID), true, basicConstraints);
+        certificateBuilder.addExtension(new ASN1ObjectIdentifier(Constants.BASIC_CONSTRAINTS_OID), true, basicConstraints);
 
-        ContentSigner contentSigner = new JcaContentSignerBuilder(SIGNATURE_ALGORITHM).build(keyPair.getPrivate());
+        ContentSigner contentSigner = new JcaContentSignerBuilder(Constants.SIGNATURE_ALGORITHM).build(keyPair.getPrivate());
 
         X509Certificate finalCert = new JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certificateBuilder.build(contentSigner));
 
@@ -117,10 +117,10 @@ public class CertGenerationUtils {
 
         BasicConstraints basicConstraints = new BasicConstraints(true);
 
-        certificateBuilder.addExtension(new ASN1ObjectIdentifier(BASIC_CONSTRAINTS_OID), true, basicConstraints);
+        certificateBuilder.addExtension(new ASN1ObjectIdentifier(Constants.BASIC_CONSTRAINTS_OID), true, basicConstraints);
 
         PrivateKey privateKey = KeystoreUtils.getInstance().getPrivateKey();
-        ContentSigner contentSigner = new JcaContentSignerBuilder(SIGNATURE_ALGORITHM).build(privateKey);
+        ContentSigner contentSigner = new JcaContentSignerBuilder(Constants.SIGNATURE_ALGORITHM).build(privateKey);
 
         X509Certificate finalCert = new JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certificateBuilder.build(contentSigner));
 
@@ -163,7 +163,6 @@ public class CertGenerationUtils {
         Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
         ByteArrayInputStream pemStream = new ByteArrayInputStream(pem.getBytes(StandardCharsets.UTF_8));
 
-        X509Certificate certificate = (X509Certificate) new CertificateFactory().engineGenerateCertificate(pemStream);
-        return certificate;
+        return (X509Certificate) new CertificateFactory().engineGenerateCertificate(pemStream);
     }
 }

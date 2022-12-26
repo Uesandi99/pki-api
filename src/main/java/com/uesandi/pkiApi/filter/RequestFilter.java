@@ -1,5 +1,6 @@
 package com.uesandi.pkiApi.filter;
 
+import com.uesandi.pkiApi.constants.Constants;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -20,8 +21,8 @@ public class RequestFilter implements Filter {
 
         HttpServletRequest req = (HttpServletRequest) request;
 
-        String apiKey = req.getHeader("X-API-Key");
-        if(apiKey == null || !apiKey.equals("9ddaa525-bfc2-4f74-92e0-43b7a028aee1")){
+        String apiKey = req.getHeader(Constants.API_KEY_HEADER);
+        if(apiKey == null || !apiKey.equals(Constants.API_KEY_HEADER_VALUE)){
             ((HttpServletResponse) response).sendError(HttpServletResponse.SC_FORBIDDEN);
         }
         chain.doFilter(request, response);
