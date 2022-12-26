@@ -1,12 +1,11 @@
 package com.uesandi.pkiApi.utils;
 
-import com.uesandi.pkiApi.model.CertificateAuthority;
+import com.uesandi.pkiApi.constants.Constants;
 import org.apache.tomcat.util.http.fileupload.IOUtils;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x509.BasicConstraints;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
-import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.cert.X509v3CertificateBuilder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
@@ -33,8 +32,7 @@ import java.util.Calendar;
 import java.util.Date;
 
 public class CertGenerationUtils {
-    final static String SIGNATURE_ALGORITHM = "SHA256WithRSAEncryption";
-    final static String BASIC_CONSTRAINTS_OID = "2.5.29.19";
+
 
     private CertGenerationUtils(){}
 
@@ -54,28 +52,16 @@ public class CertGenerationUtils {
 
         KeyPair keyPair = generateRSAKeyPair();
 
-        X500Name subjectName = new X500Name("CN=" + subjectCN);
-        X500Name issuerName = new X500Name("CN=Unai Esandi");
+        X500Name subjectName = new X500Name(Constants.COMMON_NAME_SHORT + subjectCN);
+        X500Name issuerName = new X500Name(Constants.SELFSIGN_ISSUER);
 
-        //Prepare dates
-        long now = System.currentTimeMillis();
-        Date startDate = new Date(now);
-
-        Calendar calendar = Calendar.getInstance();
-        calendar.setTime(startDate);
-        calendar.add(Calendar.YEAR, 1);
-        Date endDate = calendar.getTime();
-
-        //Generate Serial Number from current time
-        BigInteger certSerialNumber = new BigInteger(String.valueOf(now));
-
-        X509v3CertificateBuilder certificateBuilder = new JcaX509v3CertificateBuilder(issuerName, certSerialNumber, startDate, endDate, subjectName, keyPair.getPublic());
+        X509v3CertificateBuilder certificateBuilder = generateCertificateBuilder(subjectName, issuerName, keyPair.getPublic());
 
         BasicConstraints basicConstraints = new BasicConstraints(true);
 
-        certificateBuilder.addExtension(new ASN1ObjectIdentifier(BASIC_CONSTRAINTS_OID), true, basicConstraints);
+        certificateBuilder.addExtension(new ASN1ObjectIdentifier(Constants.BASIC_CONSTRAINTS_OID), true, basicConstraints);
 
-        ContentSigner contentSigner = new JcaContentSignerBuilder(SIGNATURE_ALGORITHM).build(keyPair.getPrivate());
+        ContentSigner contentSigner = new JcaContentSignerBuilder(Constants.SIGNATURE_ALGORITHM).build(keyPair.getPrivate());
 
         X509Certificate finalCert = new JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certificateBuilder.build(contentSigner));
 
@@ -95,32 +81,20 @@ public class CertGenerationUtils {
         X500Name subjectName = csr.getSubject();
         X500Name issuerName = new X500Name(x509Certificate.getSubjectX500Principal().getName());
 
-        //Prepare dates
-        long now = System.currentTimeMillis();
-        Date startDate = new Date(now);
-
-        Calendar calendar = Calendar.getInstance();
-        calendar.setTime(startDate);
-        calendar.add(Calendar.YEAR, 1);
-        Date endDate = calendar.getTime();
-
-        //Generate Serial Number from current time
-        BigInteger certSerialNumber = new BigInteger(String.valueOf(now));
-
         SubjectPublicKeyInfo pkInfo = csr.getSubjectPublicKeyInfo();
         RSAKeyParameters rsa = (RSAKeyParameters) PublicKeyFactory.createKey(pkInfo);
         RSAPublicKeySpec rsaSpec = new RSAPublicKeySpec(rsa.getModulus(), rsa.getExponent());
         KeyFactory kf = KeyFactory.getInstance("RSA");
         PublicKey rsaPub = kf.generatePublic(rsaSpec);
 
-        X509v3CertificateBuilder certificateBuilder = new JcaX509v3CertificateBuilder(issuerName, certSerialNumber, startDate, endDate, subjectName, rsaPub);
+        X509v3CertificateBuilder certificateBuilder = generateCertificateBuilder(subjectName, issuerName, rsaPub);
 
         BasicConstraints basicConstraints = new BasicConstraints(true);
 
-        certificateBuilder.addExtension(new ASN1ObjectIdentifier(BASIC_CONSTRAINTS_OID), true, basicConstraints);
+        certificateBuilder.addExtension(new ASN1ObjectIdentifier(Constants.BASIC_CONSTRAINTS_OID), true, basicConstraints);
 
         PrivateKey privateKey = KeystoreUtils.getInstance().getPrivateKey();
-        ContentSigner contentSigner = new JcaContentSignerBuilder(SIGNATURE_ALGORITHM).build(privateKey);
+        ContentSigner contentSigner = new JcaContentSignerBuilder(Constants.SIGNATURE_ALGORITHM).build(privateKey);
 
         X509Certificate finalCert = new JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certificateBuilder.build(contentSigner));
 
@@ -160,10 +134,25 @@ public class CertGenerationUtils {
     }
 
     public static X509Certificate parseCertificateFromPem(String pem) throws CertificateException {
-        Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
+        Security.addProvider(new BouncyCastleProvider());
         ByteArrayInputStream pemStream = new ByteArrayInputStream(pem.getBytes(StandardCharsets.UTF_8));
 
-        X509Certificate certificate = (X509Certificate) new CertificateFactory().engineGenerateCertificate(pemStream);
-        return certificate;
+        return (X509Certificate) new CertificateFactory().engineGenerateCertificate(pemStream);
+    }
+
+    private static X509v3CertificateBuilder generateCertificateBuilder(X500Name subjectName, X500Name issuerName, PublicKey publicKey){
+        //Prepare dates
+        long now = System.currentTimeMillis();
+        Date startDate = new Date(now);
+
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(startDate);
+        calendar.add(Calendar.YEAR, 1);
+        Date endDate = calendar.getTime();
+
+        //Generate Serial Number from current time
+        BigInteger certSerialNumber = new BigInteger(String.valueOf(now));
+
+        return new JcaX509v3CertificateBuilder(issuerName, certSerialNumber, startDate, endDate, subjectName, publicKey);
     }
 }

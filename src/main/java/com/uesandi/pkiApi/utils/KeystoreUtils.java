@@ -1,5 +1,7 @@
 package com.uesandi.pkiApi.utils;
 
+import com.uesandi.pkiApi.constants.Constants;
+
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -12,16 +14,12 @@ import java.security.cert.X509Certificate;
 public class KeystoreUtils {
     private static KeystoreUtils instance;
     private KeyStore keyStore;
-    private static final String PASSWORD = "Test";
-    private static final String KEYSTORE_NAME = "keystore.jceks";
 
-    private static final String CA_ALIAS = "ca";
-    private static final String PRIVATE_KEY_ALIAS = "ca_private_key";
 
     private KeystoreUtils() throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException {
-        keyStore = KeyStore.getInstance("JCEKS");
+        keyStore = KeyStore.getInstance(Constants.KEYSTORE_TYPE);
         try{
-            keyStore.load(new FileInputStream(KEYSTORE_NAME), PASSWORD.toCharArray());
+            keyStore.load(new FileInputStream(Constants.KEYSTORE_FILE_NAME), Constants.PASSWORD.toCharArray());
         }catch (FileNotFoundException e){
             keyStore.load(null, null);
         }
@@ -33,13 +31,13 @@ public class KeystoreUtils {
     }
 
     public void saveKeystore() throws IOException, CertificateException, KeyStoreException, NoSuchAlgorithmException {
-        try (FileOutputStream stream = new FileOutputStream(KEYSTORE_NAME)) {
-            keyStore.store(stream, PASSWORD.toCharArray());
+        try (FileOutputStream stream = new FileOutputStream(Constants.KEYSTORE_FILE_NAME)) {
+            keyStore.store(stream, Constants.PASSWORD.toCharArray());
         }
     }
 
     public void saveCertificate(Certificate certificate) throws KeyStoreException, CertificateException, IOException, NoSuchAlgorithmException {
-        keyStore.setCertificateEntry(CA_ALIAS, certificate);
+        keyStore.setCertificateEntry(Constants.CA_ALIAS, certificate);
         saveKeystore();
     }
 
@@ -47,17 +45,17 @@ public class KeystoreUtils {
         Certificate[] certChain = new Certificate[1];
         certChain[0] = certificate;
         KeyStore.PrivateKeyEntry keyEntry = new KeyStore.PrivateKeyEntry(privateKey, certChain);
-        KeyStore.PasswordProtection passwordProtection = new KeyStore.PasswordProtection(PASSWORD.toCharArray());
-        keyStore.setEntry(PRIVATE_KEY_ALIAS, keyEntry, passwordProtection);
+        KeyStore.PasswordProtection passwordProtection = new KeyStore.PasswordProtection(Constants.PASSWORD.toCharArray());
+        keyStore.setEntry(Constants.PRIVATE_KEY_ALIAS, keyEntry, passwordProtection);
         saveKeystore();
     }
 
     public X509Certificate getCertificate() throws KeyStoreException {
-        return (X509Certificate) keyStore.getCertificate(CA_ALIAS);
+        return (X509Certificate) keyStore.getCertificate(Constants.CA_ALIAS);
     }
 
     public PrivateKey getPrivateKey() throws UnrecoverableKeyException, KeyStoreException, NoSuchAlgorithmException {
-        Key key = keyStore.getKey(PRIVATE_KEY_ALIAS, PASSWORD.toCharArray());
+        Key key = keyStore.getKey(Constants.PRIVATE_KEY_ALIAS, Constants.PASSWORD.toCharArray());
 
         return (PrivateKey) key;
     }
