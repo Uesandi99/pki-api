@@ -45,10 +45,6 @@ public class CertGenerationUtils {
     }
 
     public static X509Certificate generateCA(String subjectCN) throws CertificateGenerationException {
-        //Add BouncyCastle Provider to Security
-        Provider bcProvider = new BouncyCastleProvider();
-        Security.addProvider(bcProvider);
-
         X509Certificate finalCert;
         KeyPair keyPair;
 
@@ -66,7 +62,7 @@ public class CertGenerationUtils {
 
             ContentSigner contentSigner = new JcaContentSignerBuilder(Constants.SIGNATURE_ALGORITHM).build(keyPair.getPrivate());
 
-            finalCert = new JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certificateBuilder.build(contentSigner));
+            finalCert = new JcaX509CertificateConverter().setProvider(new BouncyCastleProvider()).getCertificate(certificateBuilder.build(contentSigner));
         }catch(Exception e){
             throw new CertificateGenerationException("Error generating CA certificate.", e);
         }
@@ -93,9 +89,6 @@ public class CertGenerationUtils {
         }
 
         if(x509Certificate == null || privateKey == null) throw new CertificateGenerationException("Missing information in Keystore file, please generate CA again.");
-        //Add BouncyCastle Provider to Security
-        Provider bcProvider = new BouncyCastleProvider();
-        Security.addProvider(bcProvider);
 
         X509Certificate finalCert;
 
@@ -117,7 +110,7 @@ public class CertGenerationUtils {
 
             ContentSigner contentSigner = new JcaContentSignerBuilder(Constants.SIGNATURE_ALGORITHM).build(privateKey);
 
-            finalCert = new JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certificateBuilder.build(contentSigner));
+            finalCert = new JcaX509CertificateConverter().setProvider(new BouncyCastleProvider()).getCertificate(certificateBuilder.build(contentSigner));
 
         }catch (Exception e){
             throw new CertificateGenerationException("Error issuing certificate.", e);
@@ -139,7 +132,6 @@ public class CertGenerationUtils {
     }
 
     public static PKCS10CertificationRequest convertPemToPKCS10CertificationRequest(String pemString) throws CertificateGenerationException {
-        Security.addProvider(new BouncyCastleProvider());
         PKCS10CertificationRequest csr;
         ByteArrayInputStream pemStream = new ByteArrayInputStream(pemString.getBytes(StandardCharsets.UTF_8));
 
@@ -160,7 +152,6 @@ public class CertGenerationUtils {
     }
 
     public static X509Certificate parseCertificateFromPem(String pem) throws CertificateException {
-        Security.addProvider(new BouncyCastleProvider());
         ByteArrayInputStream pemStream = new ByteArrayInputStream(pem.getBytes(StandardCharsets.UTF_8));
 
         return (X509Certificate) new CertificateFactory().engineGenerateCertificate(pemStream);
