@@ -1,6 +1,7 @@
 package com.uesandi.pkiApi.utils;
 
 import com.uesandi.pkiApi.constants.Constants;
+import com.uesandi.pkiApi.exception.CertificateGenerationException;
 import org.apache.tomcat.util.http.fileupload.IOUtils;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.x500.X500Name;
@@ -15,7 +16,6 @@ import org.bouncycastle.jcajce.provider.asymmetric.x509.CertificateFactory;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.operator.ContentSigner;
-import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.util.io.pem.PemObject;
@@ -36,8 +36,7 @@ public class CertGenerationUtils {
 
     private CertGenerationUtils(){}
 
-    public static KeyPair generateRSAKeyPair() throws GeneralSecurityException
-    {
+    public static KeyPair generateRSAKeyPair() throws GeneralSecurityException {
         KeyPairGenerator kpGen = KeyPairGenerator.getInstance("RSA", "BC");
 
         kpGen.initialize(new RSAKeyGenParameterSpec(2048, RSAKeyGenParameterSpec.F4));
@@ -45,77 +44,103 @@ public class CertGenerationUtils {
         return kpGen.generateKeyPair();
     }
 
-    public static X509Certificate generateCA(String subjectCN) throws IOException, OperatorCreationException, GeneralSecurityException {
+    public static X509Certificate generateCA(String subjectCN) throws CertificateGenerationException {
         //Add BouncyCastle Provider to Security
         Provider bcProvider = new BouncyCastleProvider();
         Security.addProvider(bcProvider);
 
-        KeyPair keyPair = generateRSAKeyPair();
+        X509Certificate finalCert;
+        KeyPair keyPair;
 
-        X500Name subjectName = new X500Name(Constants.COMMON_NAME_SHORT + subjectCN);
-        X500Name issuerName = new X500Name(Constants.SELFSIGN_ISSUER);
+        try {
+            keyPair = generateRSAKeyPair();
 
-        X509v3CertificateBuilder certificateBuilder = generateCertificateBuilder(subjectName, issuerName, keyPair.getPublic());
+            X500Name subjectName = new X500Name(Constants.COMMON_NAME_SHORT + subjectCN);
+            X500Name issuerName = new X500Name(Constants.SELFSIGN_ISSUER);
 
-        BasicConstraints basicConstraints = new BasicConstraints(true);
+            X509v3CertificateBuilder certificateBuilder = generateCertificateBuilder(subjectName, issuerName, keyPair.getPublic());
 
-        certificateBuilder.addExtension(new ASN1ObjectIdentifier(Constants.BASIC_CONSTRAINTS_OID), true, basicConstraints);
+            BasicConstraints basicConstraints = new BasicConstraints(true);
 
-        ContentSigner contentSigner = new JcaContentSignerBuilder(Constants.SIGNATURE_ALGORITHM).build(keyPair.getPrivate());
+            certificateBuilder.addExtension(new ASN1ObjectIdentifier(Constants.BASIC_CONSTRAINTS_OID), true, basicConstraints);
 
-        X509Certificate finalCert = new JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certificateBuilder.build(contentSigner));
+            ContentSigner contentSigner = new JcaContentSignerBuilder(Constants.SIGNATURE_ALGORITHM).build(keyPair.getPrivate());
 
-        KeystoreUtils keystoreUtils = KeystoreUtils.getInstance();
-        keystoreUtils.saveCertificate(finalCert);
-        keystoreUtils.savePrivateKey(keyPair.getPrivate(), finalCert);
+            finalCert = new JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certificateBuilder.build(contentSigner));
+        }catch(Exception e){
+            throw new CertificateGenerationException("Error generating CA certificate.", e);
+        }
+
+        try{
+            KeystoreUtils keystoreUtils = KeystoreUtils.getInstance();
+            keystoreUtils.saveCertificate(finalCert);
+            keystoreUtils.savePrivateKey(keyPair.getPrivate(), finalCert);
+        }catch (KeyStoreException e){
+            e.printStackTrace();
+        }
+
         return finalCert;
     }
 
-    public static X509Certificate issueCertificate(PKCS10CertificationRequest csr) throws IOException, OperatorCreationException, GeneralSecurityException {
-        X509Certificate x509Certificate = KeystoreUtils.getInstance().getCertificate();
-        if(x509Certificate == null) return null;
+    public static X509Certificate issueCertificate(PKCS10CertificationRequest csr) throws CertificateGenerationException {
+        X509Certificate x509Certificate;
+        PrivateKey privateKey;
+        try{
+            x509Certificate = KeystoreUtils.getInstance().getCertificate();
+            privateKey = KeystoreUtils.getInstance().getPrivateKey();
+        }catch (KeyStoreException e){
+            throw new CertificateGenerationException("Error reading Keystore file.", e);
+        }
+
+        if(x509Certificate == null || privateKey == null) throw new CertificateGenerationException("Missing information in Keystore file, please generate CA again.");
         //Add BouncyCastle Provider to Security
         Provider bcProvider = new BouncyCastleProvider();
         Security.addProvider(bcProvider);
+
+        X509Certificate finalCert;
 
         X500Name subjectName = csr.getSubject();
         X500Name issuerName = new X500Name(x509Certificate.getSubjectX500Principal().getName());
 
-        SubjectPublicKeyInfo pkInfo = csr.getSubjectPublicKeyInfo();
-        RSAKeyParameters rsa = (RSAKeyParameters) PublicKeyFactory.createKey(pkInfo);
-        RSAPublicKeySpec rsaSpec = new RSAPublicKeySpec(rsa.getModulus(), rsa.getExponent());
-        KeyFactory kf = KeyFactory.getInstance("RSA");
-        PublicKey rsaPub = kf.generatePublic(rsaSpec);
+        try{
+            SubjectPublicKeyInfo pkInfo = csr.getSubjectPublicKeyInfo();
+            RSAKeyParameters rsa = (RSAKeyParameters) PublicKeyFactory.createKey(pkInfo);
+            RSAPublicKeySpec rsaSpec = new RSAPublicKeySpec(rsa.getModulus(), rsa.getExponent());
+            KeyFactory kf = KeyFactory.getInstance("RSA");
+            PublicKey rsaPub = kf.generatePublic(rsaSpec);
 
-        X509v3CertificateBuilder certificateBuilder = generateCertificateBuilder(subjectName, issuerName, rsaPub);
+            X509v3CertificateBuilder certificateBuilder = generateCertificateBuilder(subjectName, issuerName, rsaPub);
 
-        BasicConstraints basicConstraints = new BasicConstraints(true);
+            BasicConstraints basicConstraints = new BasicConstraints(true);
 
-        certificateBuilder.addExtension(new ASN1ObjectIdentifier(Constants.BASIC_CONSTRAINTS_OID), true, basicConstraints);
+            certificateBuilder.addExtension(new ASN1ObjectIdentifier(Constants.BASIC_CONSTRAINTS_OID), true, basicConstraints);
 
-        PrivateKey privateKey = KeystoreUtils.getInstance().getPrivateKey();
-        ContentSigner contentSigner = new JcaContentSignerBuilder(Constants.SIGNATURE_ALGORITHM).build(privateKey);
+            ContentSigner contentSigner = new JcaContentSignerBuilder(Constants.SIGNATURE_ALGORITHM).build(privateKey);
 
-        X509Certificate finalCert = new JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certificateBuilder.build(contentSigner));
+            finalCert = new JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certificateBuilder.build(contentSigner));
+
+        }catch (Exception e){
+            throw new CertificateGenerationException("Error issuing certificate.", e);
+        }
 
         return finalCert;
     }
 
     public static Boolean verifyCertificate(X509Certificate certificate){
-        Boolean response = false;
+        boolean response = false;
 
         try{
             certificate.verify(KeystoreUtils.getInstance().getCertificate().getPublicKey());
             response = true;
-        }catch (Exception e){
+        }catch (Exception ignored){
         }
 
         return response;
     }
 
-    public static PKCS10CertificationRequest convertPemToPKCS10CertificationRequest(String pemString) {
-        Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
-        PKCS10CertificationRequest csr = null;
+    public static PKCS10CertificationRequest convertPemToPKCS10CertificationRequest(String pemString) throws CertificateGenerationException {
+        Security.addProvider(new BouncyCastleProvider());
+        PKCS10CertificationRequest csr;
         ByteArrayInputStream pemStream = new ByteArrayInputStream(pemString.getBytes(StandardCharsets.UTF_8));
 
         Reader pemReader = new BufferedReader(new InputStreamReader(pemStream));
@@ -124,7 +149,8 @@ public class CertGenerationUtils {
             pemParser = new PEMParser(pemReader);
             PemObject parsedObj = pemParser.readPemObject();
             csr = new PKCS10CertificationRequest(parsedObj.getContent());
-        } catch (IOException ex) {
+        } catch (IOException e) {
+            throw new CertificateGenerationException("Error parsing CSR from PEM.", e);
         } finally {
             if (pemParser != null) {
                 IOUtils.closeQuietly(pemParser);
